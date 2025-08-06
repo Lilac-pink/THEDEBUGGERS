@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Chatbot</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        #chat-box { border: 1px solid #ccc; padding: 10px; height: 250px; overflow-y: auto; }
+        .user { color: blue; }
+        .bot { color: green; }
+    </style>
+</head>
+<body>
+    <h2>Upload Video</h2>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="video" required>
+        <button type="submit">Analyze Video</button>
+    </form>
+
+    {% if summary %}
+        <h3>Video Summary</h3>
+        <p>{{ summary }}</p>
+    {% endif %}
+
+    <h3>Ask the Bot</h3>
+    <div id="chat-box"></div>
+    <input type="text" id="question" placeholder="Ask something..." style="width: 70%;">
+    <button onclick="sendQuestion()">Send</button>
+
+    <script>
+        function sendQuestion() {
+            const q = document.getElementById("question").value;
+            if (!q) return;
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `<div class="user"><b>You:</b> ${q}</div>`;
+            document.getElementById("question").value = "";
+            fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: q })
+            })
+            .then(res => res.json())
+            .then(data => {
+                chatBox.innerHTML += `<div class="bot"><b>Bot:</b> ${data.answer}</div>`;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+        }
+    </script>
+</body>
+</html>
+
