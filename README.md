@@ -1,6 +1,6 @@
-# 🎥 Visual Understanding Chat Assistant
+Visual Understanding Chat Assistant
 
-## 📌 Project Overview
+Project Overview
 This project is a **Flask-based Visual Understanding Chat Assistant** that:
 1. Accepts a video upload from the user.
 2. Extracts frames from the video.
@@ -35,7 +35,7 @@ It is designed as a **lightweight prototype** for hackathons, research, or early
 
 ## 🏗 High-Level Architecture
 
-![Architecture Diagram](architecture.png)
+
 
 **Flow:**
 1. User uploads video.
@@ -58,6 +58,18 @@ It is designed as a **lightweight prototype** for hackathons, research, or early
 | Frontend       | HTML + Jinja Templates | Fast to implement with Flask for hackathons. |
 
 ---
+pip install -r requirements.txt
+folder structure for running 
+THEDEBUGGERS/
+├── app.py
+├── requirements.txt
+├── README.md
+├── .gitignore
+├── templates/
+│   └── index.html
+├── uploads/
+└── __pycache__/
+
 
 ## ⚙ Backend Setup
 
@@ -65,3 +77,4 @@ It is designed as a **lightweight prototype** for hackathons, research, or early
 ```bash
 git clone https://github.com/your-username/video-chat-assistant.git
 cd video-chat-assistant
+
