@@ -11,92 +11,83 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Replace with your Gemini API key (free from https://aistudio.google.com/app/apikey)
+# Configure Gemini
 genai.configure(api_key="AIzaSyADTeHFIcsrGWYMF7ywduAvN12MGvgOXyM")
-
-# Gemini model (fast + free tier)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# Memory for last summary
-last_summary = None
+# Memory for frames
+video_frames_base64 = []
 
 # ------------------ FRAME EXTRACTION ------------------ #
-def extract_frames(video_path, num_frames=3):
-    frames_base64 = []
+def extract_frames(video_path, frame_rate=1):
+    """Extract frames at a fixed rate (default: 1 frame/sec)."""
+    frames = []
     cap = cv2.VideoCapture(video_path)
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    frame_interval = max(1, int(fps / frame_rate))
+    frame_count = 0
 
-    if not cap.isOpened():
-        raise ValueError("Could not open video file.")
-
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    frame_indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
-
-    for idx in frame_indices:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+    while cap.isOpened():
         success, frame = cap.read()
-        if success:
+        if not success:
+            break
+        if frame_count % frame_interval == 0:
             _, buffer = cv2.imencode('.jpg', frame)
-            img_base64 = base64.b64encode(buffer).decode('utf-8')
-            frames_base64.append(img_base64)
+            frames.append(base64.b64encode(buffer).decode('utf-8'))
+        frame_count += 1
 
     cap.release()
-    return frames_base64
+    return frames
 
 # ------------------ GEMINI ANALYSIS ------------------ #
 def analyze_video(video_path):
-    global last_summary
-    try:
-        frames = extract_frames(video_path, num_frames=3)
-        if not frames:
-            return "Error: Could not extract any frames from the video."
+    global video_frames_base64
+    video_frames_base64 = extract_frames(video_path, frame_rate=1)  # More frames for better answers
+    return "Video processed successfully. You can now ask specific questions about it."
 
-        # Prepare Gemini input
-        parts = [{"mime_type": "image/jpeg", "data": base64.b64decode(frame)} for frame in frames]
-
-        response = model.generate_content(
-            contents=[
-                "Analyze these images from a video and give a short summary.",
-                *parts
-            ]
-        )
-
-        last_summary = response.text.strip() if response.text else "No summary generated."
-        return last_summary
-
-    except Exception as e:
-        print("Error analyzing video:", e)
-        return f"Error processing video: {str(e)}"
-
-# ------------------ SIMPLE CHATBOT ------------------ #
+# ------------------ CHATBOT ------------------ #
 @app.route('/chat', methods=['POST'])
 def chat():
-    global last_summary
+    global video_frames_base64
     data = request.json
     question = data.get("question", "")
 
-    if not last_summary:
+    if not video_frames_base64:
         return jsonify({"answer": "No video analyzed yet. Please upload a video first."})
 
-    # Simple answer logic: combine summary + question
-    answer = f"Based on the video summary: {last_summary}\n\nMy answer: {question} likely relates to the main content shown."
-    return jsonify({"answer": answer})
+    try:
+        # Send the question + frames to Gemini
+        contents = [
+            f"Answer the following question based only on the provided video frames:\n{question}",
+        ]
+        # Add frames as image parts
+        for frame_b64 in video_frames_base64[:10]:  # Limit to avoid token overflow
+            contents.append({"mime_type": "image/jpeg", "data": base64.b64decode(frame_b64)})
+
+        response = model.generate_content(contents)
+        answer = response.text.strip() if response.text else "I couldn't determine the answer."
+
+        return jsonify({"answer": answer})
+    except Exception as e:
+        return jsonify({"answer": f"Error generating answer: {str(e)}"})
 
 # ------------------ FLASK ROUTES ------------------ #
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    summary = None
+    message = None
     if request.method == 'POST' and 'video' in request.files:
         file = request.files['video']
         if file.filename:
             filename = secure_filename(file.filename)
             video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(video_path)
-            summary = analyze_video(video_path)
+            message = analyze_video(video_path)
             try:
                 os.remove(video_path)
             except:
                 pass
-    return render_template('index.html', summary=summary)
+    return render_template('index.html', summary=message)
 
 if __name__ == '__main__':
     app.run(debug=True)
+
